@@ -1,0 +1,9 @@
+# Keep false until you have checked account access, credits, and pricing.
+enable_ec2 = false
+
+# If you intentionally enable EC2, set these first:
+# enable_ec2 = true
+# key_name   = "your-existing-key-pair-name"
+# admin_cidr = "YOUR_PUBLIC_IPV4/32"
+
+aws_region = "ap-south-1"
