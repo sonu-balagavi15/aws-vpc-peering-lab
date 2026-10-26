@@ -1,102 +1,148 @@
-# AWS VPC Peering Lab (Terraform)
+# AWS VPC Peering Lab with Terraform
 
-A reproducible Infrastructure-as-Code implementation of a two-VPC AWS peering lab in `ap-south-1` (Mumbai).
+A beginner-friendly Infrastructure as Code (IaC) project that defines two Amazon Virtual Private Clouds (VPCs) connected through VPC Peering in the AWS Mumbai Region (`ap-south-1`).
 
-> **Cost and account warning:** This repository does not create AWS resources until you run Terraform. VPCs and peering have no direct hourly charge, but EC2 instances, EBS volumes, public IPv4 addresses, data transfer, and other resources may incur charges. Keep `enable_ec2 = false` until you have verified your account plan, credits, and expected charges. Do not upgrade to a paid plan unless you deliberately choose to.
+> **Project status:** This repository contains Terraform configuration and documentation. The infrastructure has **not** been deployed or connectivity-tested as part of preparing this repository. Do not describe the lab as deployed until you run and verify it yourself.
+
+## Project objectives
+
+- Create two isolated VPC networks with non-overlapping CIDR ranges.
+- Connect the VPCs using a VPC Peering connection.
+- Configure route tables so each VPC can route traffic to the other VPC.
+- Apply security-group rules for restricted administrative access and ICMP testing.
+- Manage the infrastructure using Terraform instead of creating each resource manually.
+- Review the Terraform plan and clean up resources after a real deployment.
 
 ## Architecture
 
-- **VPC A** `10.10.0.0/16`
-  - Public subnet `10.10.1.0/24` (optional bastion)
-  - Private subnet `10.10.2.0/24` (optional App-A)
-  - Internet Gateway for the public subnet
-- **VPC B** `10.20.0.0/16`
-  - Private subnet `10.20.1.0/24` (optional App-B)
-- VPC peering connection between VPC A and VPC B
-- Routes to the remote VPC CIDR via the peering connection
-- Security groups that restrict SSH to the administrator CIDR and bastion, and allow ICMP only between the two app hosts
+![AWS VPC Peering Lab architecture](docs/architecture.svg)
 
-```mermaid
-flowchart LR
-  Internet((Internet)) --> IGW[Internet Gateway]
-  subgraph A[VPC A · 10.10.0.0/16]
-    PUB[Public subnet · 10.10.1.0/24]
-    PRIV_A[Private subnet · 10.10.2.0/24]
-    BASTION[Bastion · optional]
-    APP_A[App-A · optional]
-    PUB --- BASTION
-    PRIV_A --- APP_A
-  end
-  PEER{{VPC Peering}}
-  subgraph B[VPC B · 10.20.0.0/16]
-    PRIV_B[Private subnet · 10.20.1.0/24]
-    APP_B[App-B · optional]
-    PRIV_B --- APP_B
-  end
-  IGW --> PUB
-  PRIV_A <--> PEER
-  PRIV_B <--> PEER
+Editable diagram source: [`docs/architecture.mmd`](docs/architecture.mmd)
+
+### Network plan
+
+| Component | CIDR / setting | Purpose |
+|---|---|---|
+| AWS Region | `ap-south-1` (Mumbai) | Region used by the Terraform configuration |
+| VPC A | `10.10.0.0/16` | First network |
+| VPC A public subnet | `10.10.1.0/24` | Optional bastion subnet |
+| VPC A private subnet | `10.10.2.0/24` | Optional App-A subnet |
+| VPC B | `10.20.0.0/16` | Second network |
+| VPC B private subnet | `10.20.1.0/24` | Optional App-B subnet |
+| VPC Peering | `ewb-a-b-peer` | Private routing between the VPCs |
+
+The CIDR ranges are non-overlapping, which is required for VPC peering.
+
+## Services and tools
+
+- Amazon VPC
+- VPC Peering
+- Subnets, route tables, and routes
+- Internet Gateway for VPC A's public subnet
+- Security groups
+- Amazon EC2 (optional; disabled by default)
+- Terraform
+- AWS CLI
+
+## Repository structure
+
+```text
+aws-vpc-peering-lab/
+├── README.md
+├── docs/
+│   ├── architecture.mmd
+│   ├── architecture.svg
+│   └── validation-checklist.md
+└── terraform/
+    ├── main.tf
+    ├── variables.tf
+    ├── outputs.tf
+    ├── terraform.tfvars.example
+    └── .gitignore
 ```
 
 ## Prerequisites
 
-- An AWS account with access to VPC and (if enabling compute) EC2
-- Terraform 1.5 or newer
-- AWS CLI configured for the intended account and region
-- If enabling EC2, an existing EC2 key pair in `ap-south-1` and your public IPv4 CIDR (for example, `203.0.113.10/32`; replace with your real public IP CIDR)
+For an actual deployment, you need:
 
-## Quick start
+1. An AWS account with permission to use VPC resources.
+2. Terraform 1.5 or newer installed locally.
+3. AWS CLI configured for the intended account.
+4. An existing EC2 key pair and your public IPv4 CIDR only if you choose to enable EC2.
 
-1. Change into the Terraform folder:
-   ```bash
-   cd terraform
-   ```
-2. Create your local variables file:
+**Cost and account warning:** Do not enter payment details or upgrade an account just to publish this repository. The project can be reviewed on GitHub without deploying it. VPCs and peering generally have no direct hourly charge, but data transfer and optional resources may incur charges. EC2 instances, EBS volumes, public IPv4 addresses, and related services can cost money. Check current AWS pricing and your account's terms before deployment.
+
+## Quick start (only if you choose to deploy)
+
+1. Open a terminal in the repository's `terraform` directory.
+2. Copy the example variables file:
+
    ```bash
    cp terraform.tfvars.example terraform.tfvars
    ```
-3. Edit `terraform.tfvars`:
-   - Keep `enable_ec2 = false` while checking cost/access.
-   - Set `key_name` to an existing key pair name only if you plan to enable EC2.
-   - Set `admin_cidr` to your public IPv4 address with `/32` only if enabling the bastion.
-4. Initialize and review the plan:
+
+   On Windows PowerShell, use:
+
+   ```powershell
+   Copy-Item terraform.tfvars.example terraform.tfvars
+   ```
+
+3. Keep `enable_ec2 = false` unless you have reviewed the costs and configured the required EC2 values.
+4. Initialize Terraform and inspect the plan:
+
    ```bash
    terraform init
+   terraform validate
    terraform plan
    ```
-5. Apply only after reviewing the plan and any potential charges:
+
+5. Only apply after reviewing the complete plan, permissions, account terms, and potential charges:
+
    ```bash
    terraform apply
    ```
 
-### Optional EC2 instances
+Do not run `terraform apply` just to submit the GitHub repository. The network resources are created only when Terraform is run and applied.
 
-To include the bastion, App-A, and App-B, set `enable_ec2 = true` in `terraform.tfvars` and set `key_name` and `admin_cidr` first. Review the Terraform plan and AWS pricing before applying. The optional instances use the latest Amazon Linux 2023 AMI published through AWS Systems Manager Parameter Store.
+## Optional EC2 instances
 
-The private instances have no public IPv4 address. No SSH or ICMP rule is opened to `0.0.0.0/0`.
+The Terraform configuration can optionally create a bastion host in VPC A's public subnet and two private application instances. EC2 is disabled by default to help avoid accidental compute charges. Before enabling it, configure the key pair and administrator CIDR, review the plan, and check AWS pricing.
 
-## Validation
+Private instances are not assigned public IPv4 addresses by this configuration. Do not open SSH access to `0.0.0.0/0`.
 
-With EC2 enabled and the instances running, use SSH from the administrator machine to the bastion, then from the bastion to App-A/App-B using the private IPs. Verify ICMP between App-A (`10.10.2.10`) and App-B (`10.20.1.10`) after peering routes are active. Amazon Linux may need ICMP/ping utilities available; no package installation is performed by this Terraform configuration.
+## Validation checklist
+
+After a real deployment, use [`docs/validation-checklist.md`](docs/validation-checklist.md) to check the VPCs, peering status, route tables, security groups, and connectivity. Record actual results and screenshots only after performing the checks.
 
 ## Cleanup
 
-Remove resources created by this project as soon as you have captured your evidence:
+If you deployed the resources using Terraform, review and run:
 
 ```bash
 terraform destroy
 ```
 
-Review the destroy plan and confirm. Also check the EC2 console for any resources created manually outside Terraform.
+Confirm the destroy plan before proceeding. Also check the AWS Console for any resources created manually outside Terraform.
 
-## Repository structure
+## Learning outcomes
 
-- `terraform/main.tf` — VPCs, subnets, IGW, peering, routes, security groups, optional EC2
-- `terraform/variables.tf` — configurable values
-- `terraform/outputs.tf` — network IDs and optional instance addresses
-- `terraform/terraform.tfvars.example` — safe example values
-- `docs/validation-checklist.md` — evidence checklist
+After completing and validating the lab, a learner should be able to explain:
+
+- Why two VPCs need non-overlapping CIDR blocks for peering.
+- How a peering connection differs from a route.
+- Why routes must be configured on both sides.
+- How security groups control permitted traffic.
+- How Terraform supports repeatable infrastructure changes and cleanup.
 
 ## Limitations
 
-This repository is Infrastructure as Code, not proof that the resources have been deployed. Do not claim that AWS connectivity tests passed until you have actually deployed and run them. The default configuration creates the network resources only; EC2 resources are disabled by default to reduce accidental costs.
+- This repository is an Infrastructure as Code lab, not evidence of a successful deployment.
+- No connectivity result is claimed until the lab is deployed and tested.
+- EC2 instances are optional and disabled by default.
+- AWS pricing and account eligibility may vary; verify them before deploying.
+
+## Author
+
+**Sonu P. Balagavi**
+
+GitHub: [sonu-balagavi15](https://github.com/sonu-balagavi15)

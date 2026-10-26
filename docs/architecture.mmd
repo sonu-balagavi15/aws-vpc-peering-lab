@@ -1,0 +1,24 @@
+flowchart LR
+    subgraph AWS["AWS Region: ap-south-1 (Mumbai)"]
+        subgraph A["VPC A — 10.10.0.0/16"]
+            AIGW["Internet Gateway"]
+            APUB["Public subnet\n10.10.1.0/24\nOptional bastion"]
+            APRIV["Private subnet\n10.10.2.0/24\nOptional App-A"]
+            ART["Route tables\nPublic + private"]
+            AIGW --- APUB
+            APUB --- ART
+            APRIV --- ART
+        end
+        PEER{{"VPC Peering\nConnection"}}
+        subgraph B["VPC B — 10.20.0.0/16"]
+            BPRIV["Private subnet\n10.20.1.0/24\nOptional App-B"]
+            BRT["Private route table"]
+            BPRIV --- BRT
+        end
+        ART <--> PEER
+        PEER <--> BRT
+    end
+    classDef network fill:#e8f1ff,stroke:#3973ac,color:#172b4d
+    classDef routing fill:#fff2cc,stroke:#b38f00,color:#3d3200
+    class AIGW,APUB,APRIV,BPRIV network
+    class ART,BRT,PEER routing
